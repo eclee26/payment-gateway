@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PaymentMethod;
 use Database\Factories\MerchantFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -92,6 +93,38 @@ class Merchant extends Model
     public function refunds(): HasMany
     {
         return $this->hasMany(Refund::class);
+    }
+
+    /**
+     * @return HasMany<MerchantPaymentMethod, $this>
+     */
+    public function paymentMethodAssignments(): HasMany
+    {
+        return $this->hasMany(MerchantPaymentMethod::class);
+    }
+
+    /**
+     * The provider pricing row that handles this payment method for the
+     * merchant, or null when it is unassigned or the provider or method
+     * has been deactivated.
+     */
+    public function providerFor(PaymentMethod $method): ?ProviderPaymentMethod
+    {
+        $id = $this->paymentMethodAssignments()
+            ->where('payment_method', $method->value)
+            ->value('provider_payment_method_id');
+
+        if ($id === null) {
+            return null;
+        }
+
+        return ProviderPaymentMethod::query()
+            ->whereKey($id)
+            ->where('payment_method', $method->value)
+            ->where('is_active', true)
+            ->whereRelation('provider', 'is_active', true)
+            ->with('provider')
+            ->first();
     }
 
     /**

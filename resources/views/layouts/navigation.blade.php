@@ -12,6 +12,7 @@
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
+                    @role('merchant')
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
@@ -27,6 +28,20 @@
                     <x-nav-link :href="route('dashboard.docs')" :active="request()->routeIs('dashboard.docs')">
                         {{ __('API docs') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('dashboard.payment-methods.index')" :active="request()->routeIs('dashboard.payment-methods.*')">
+                        {{ __('Payment methods') }}
+                    </x-nav-link>
+                    @endrole
+                    @can('providers.manage')
+                    <x-nav-link :href="route('admin.providers.index')" :active="request()->routeIs('admin.providers.*')">
+                        {{ __('Providers') }}
+                    </x-nav-link>
+                    @endcan
+                    @can('merchant-providers.assign')
+                    <x-nav-link :href="route('admin.merchants.index')" :active="request()->routeIs('admin.merchants.*')">
+                        {{ __('Merchants') }}
+                    </x-nav-link>
+                    @endcan
                 </div>
             </div>
 
@@ -78,6 +93,7 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
+            @role('merchant')
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
@@ -93,6 +109,20 @@
             <x-responsive-nav-link :href="route('dashboard.docs')" :active="request()->routeIs('dashboard.docs')">
                 {{ __('API docs') }}
             </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('dashboard.payment-methods.index')" :active="request()->routeIs('dashboard.payment-methods.*')">
+                {{ __('Payment methods') }}
+            </x-responsive-nav-link>
+            @endrole
+            @can('providers.manage')
+            <x-responsive-nav-link :href="route('admin.providers.index')" :active="request()->routeIs('admin.providers.*')">
+                {{ __('Providers') }}
+            </x-responsive-nav-link>
+            @endcan
+            @can('merchant-providers.assign')
+            <x-responsive-nav-link :href="route('admin.merchants.index')" :active="request()->routeIs('admin.merchants.*')">
+                {{ __('Merchants') }}
+            </x-responsive-nav-link>
+            @endcan
         </div>
 
         <!-- Responsive Settings Options -->

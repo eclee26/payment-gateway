@@ -4,6 +4,7 @@ namespace App\Enums;
 
 enum PaymentStatus: string
 {
+    case RequiresAction = 'requires_action';
     case RequiresCapture = 'requires_capture';
     case Succeeded = 'succeeded';
     case Failed = 'failed';

@@ -5,6 +5,7 @@
         'postman' => 'Postman',
         'authentication' => 'Authentication',
         'idempotency' => 'Idempotency',
+        'payment-methods' => 'Payment methods',
         'errors' => 'Errors',
         'test-cards' => 'Test cards',
         'webhooks' => 'Webhooks',
@@ -14,6 +15,7 @@
         'POST' => 'bg-indigo-100 text-indigo-800',
     ];
     $firstPaymentBody = [
+        'payment_method' => 'CARD',
         'amount' => 2500,
         'currency' => 'USD',
         'card' => ['number' => '4242424242424242', 'exp_month' => 12, 'exp_year' => now()->year + 4, 'cvc' => '123'],
@@ -201,10 +203,12 @@
                                 <tr><td class="{{ $td }}">400</td><td class="{{ $td }} font-mono">idempotency_key_required</td><td class="{{ $td }}">{{ __('Add an Idempotency-Key header to the POST.') }}</td></tr>
                                 <tr><td class="{{ $td }}">401</td><td class="{{ $td }} font-mono">authentication_failed</td><td class="{{ $td }}">{{ __('Fix the signature; see the checklist under Authentication.') }}</td></tr>
                                 <tr><td class="{{ $td }}">402</td><td class="{{ $td }} font-mono">card_declined, insufficient_funds, expired_card</td><td class="{{ $td }}">{{ __('Card declined (type card_error). Ask the customer for another card.') }}</td></tr>
+                                <tr><td class="{{ $td }}">402</td><td class="{{ $td }}">{{ __('Provider decline code') }}</td><td class="{{ $td }}">{{ __('Non-card payment declined (type payment_error). Offer another payment method.') }}</td></tr>
                                 <tr><td class="{{ $td }}">404</td><td class="{{ $td }} font-mono">resource_missing</td><td class="{{ $td }}">{{ __('No such payment on your account. Check the ID.') }}</td></tr>
                                 <tr><td class="{{ $td }}">409</td><td class="{{ $td }} font-mono">idempotency_request_in_progress</td><td class="{{ $td }}">{{ __('The first request with this key is still running. Retry shortly.') }}</td></tr>
                                 <tr><td class="{{ $td }}">415</td><td class="{{ $td }} font-mono">unsupported_media_type</td><td class="{{ $td }}">{{ __('Send the body as JSON with Content-Type: application/json.') }}</td></tr>
                                 <tr><td class="{{ $td }}">422</td><td class="{{ $td }} font-mono">validation_failed</td><td class="{{ $td }}">{{ __('Fix the fields listed in "errors".') }}</td></tr>
+                                <tr><td class="{{ $td }}">422</td><td class="{{ $td }} font-mono">payment_method_unavailable</td><td class="{{ $td }}">{{ __('That payment_method is not enabled on your account; see Payment methods.') }}</td></tr>
                                 <tr><td class="{{ $td }}">422</td><td class="{{ $td }} font-mono">invalid_state</td><td class="{{ $td }}">{{ __('The action is not allowed in the payment\'s current status. Fetch it to check.') }}</td></tr>
                                 <tr><td class="{{ $td }}">422</td><td class="{{ $td }} font-mono">amount_too_large</td><td class="{{ $td }}">{{ __('Capture or refund less; the message says how much is available.') }}</td></tr>
                                 <tr><td class="{{ $td }}">422</td><td class="{{ $td }} font-mono">idempotency_key_reused</td><td class="{{ $td }}">{{ __('Use a new key for a different request.') }}</td></tr>
@@ -212,6 +216,31 @@
                             </tbody>
                         </table>
                     </div>
+                </section>
+
+                {{-- Payment methods --}}
+                <section id="payment-methods" class="{{ $card }} scroll-mt-6">
+                    <h2 class="{{ $h2 }}">{{ __('Payment methods') }} <a href="#payment-methods" class="text-gray-300 opacity-0 group-hover:opacity-100" aria-hidden="true">#</a></h2>
+                    <p class="{{ $p }}">{{ __('Every payment names a payment_method. Each method you have enabled is processed by one provider (bank or PSP) assigned to your account; the API is the same whichever provider it is. See') }} <a href="{{ route('dashboard.payment-methods.index') }}" class="text-indigo-600 hover:underline">{{ __('Payment methods') }}</a> {{ __('for what is enabled and the fee per method. A method that is not enabled returns 422 payment_method_unavailable.') }}</p>
+                    <div class="mt-3 overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50"><tr><th class="{{ $th }}">payment_method</th><th class="{{ $th }}">{{ __('Flow') }}</th><th class="{{ $th }}">next_action.type</th></tr></thead>
+                            <tbody class="divide-y divide-gray-100">
+                                <tr><td class="{{ $td }} font-mono">CARD</td><td class="{{ $td }}">{{ __('Immediate: succeeded, requires_capture or failed. Requires "card".') }}</td><td class="{{ $td }}">—</td></tr>
+                                <tr><td class="{{ $td }} font-mono">QRPH</td><td class="{{ $td }}">{{ __('Show the QR code; the customer scans it in their banking or wallet app.') }}</td><td class="{{ $td }} font-mono">qr_code (qr_string)</td></tr>
+                                <tr><td class="{{ $td }} font-mono">GCASH, MAYA, INSTAPAY, PESONET</td><td class="{{ $td }}">{{ __('Redirect the customer to url to approve the payment.') }}</td><td class="{{ $td }} font-mono">redirect (url)</td></tr>
+                                <tr><td class="{{ $td }} font-mono">ECPAY</td><td class="{{ $td }}">{{ __('Give the customer the reference to pay at an outlet.') }}</td><td class="{{ $td }} font-mono">display_reference (reference)</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="{{ $p }}">{{ __('Methods other than CARD accept PHP only, cannot use capture_method, and must not include "card". They start in requires_action; when the provider reports the outcome the payment moves to succeeded or failed and you receive a payment.succeeded or payment.failed webhook. fee_amount is the provider fee in minor units.') }}</p>
+                    <h3 class="{{ $h3 }}">{{ __('Example: GCash') }}</h3>
+                    @php($wallet = $samples->walletExample())
+                    <x-docs.code-tabs :samples="$wallet['call']" />
+                    <x-docs.code class="mt-3" :code="$wallet['response']" />
+                    @if (config('gateway.simulator_enabled'))
+                        <p class="{{ $p }}">{{ __('Testing: open a requires_action payment on your Payments page and use "Simulate success" or "Simulate failure" to act as the provider.') }}</p>
+                    @endif
                 </section>
 
                 {{-- Test cards --}}
@@ -301,10 +330,11 @@
                             <div class="mt-3 overflow-x-auto">
                                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                                     <tbody class="divide-y divide-gray-100">
+                                        <tr><td class="{{ $td }} font-mono">requires_action</td><td class="{{ $td }}">{{ __('Waiting for the customer to complete next_action (methods other than CARD).') }}</td></tr>
                                         <tr><td class="{{ $td }} font-mono">requires_capture</td><td class="{{ $td }}">{{ __('Authorized, waiting for capture or cancel (manual capture only).') }}</td></tr>
                                         <tr><td class="{{ $td }} font-mono">succeeded</td><td class="{{ $td }}">{{ __('Funds captured.') }}</td></tr>
                                         <tr><td class="{{ $td }} font-mono">failed</td><td class="{{ $td }}">{{ __('Declined; see failure_code.') }}</td></tr>
-                                        <tr><td class="{{ $td }} font-mono">canceled</td><td class="{{ $td }}">{{ __('Authorization released without capture.') }}</td></tr>
+                                        <tr><td class="{{ $td }} font-mono">canceled</td><td class="{{ $td }}">{{ __('Authorization released, or pending payment abandoned.') }}</td></tr>
                                         <tr><td class="{{ $td }} font-mono">partially_refunded</td><td class="{{ $td }}">{{ __('Part of the captured amount was refunded.') }}</td></tr>
                                         <tr><td class="{{ $td }} font-mono">refunded</td><td class="{{ $td }}">{{ __('The full captured amount was refunded.') }}</td></tr>
                                     </tbody>

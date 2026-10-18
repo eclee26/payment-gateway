@@ -30,6 +30,16 @@ class PaymentException extends Exception
         return new self('amount_too_large', $message);
     }
 
+    public static function methodUnavailable(string $method): self
+    {
+        return new self('payment_method_unavailable', "The payment method [{$method}] is not enabled for this account.");
+    }
+
+    public static function providerDeclined(string $action, ?string $code): self
+    {
+        return new self('provider_declined', "The provider refused to {$action} the payment".($code ? " ({$code})." : '.'), 402);
+    }
+
     /**
      * Render the exception into an HTTP response.
      */

@@ -8,7 +8,7 @@
                     <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('ID') }}</th>
                     <th class="px-4 py-3 text-end font-medium text-gray-500">{{ __('Amount') }}</th>
                     <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Status') }}</th>
-                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Card') }}</th>
+                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Method') }}</th>
                     <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Created') }}</th>
                 </tr>
             </thead>
@@ -20,7 +20,13 @@
                         </td>
                         <td class="px-4 py-3 text-end tabular-nums">{{ \App\Support\Money::format($payment->amount, $payment->currency) }}</td>
                         <td class="px-4 py-3">{{ str_replace('_', ' ', $payment->status->value) }}</td>
-                        <td class="px-4 py-3">{{ ucfirst($payment->card_brand) }} •••• {{ $payment->card_last4 }}</td>
+                        <td class="px-4 py-3">
+                            @if ($payment->card_last4)
+                                {{ ucfirst($payment->card_brand) }} •••• {{ $payment->card_last4 }}
+                            @else
+                                {{ $payment->payment_method->label() }}
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-gray-500">{{ $payment->created_at->toDayDateTimeString() }}</td>
                     </tr>
                 @endforeach

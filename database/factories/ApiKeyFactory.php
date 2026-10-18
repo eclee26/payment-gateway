@@ -19,7 +19,8 @@ class ApiKeyFactory extends Factory
     public function definition(): array
     {
         return [
-            'merchant_id' => Merchant::factory(),
+            // A merchant ready to take card payments, the common API case.
+            'merchant_id' => Merchant::factory()->withPaymentMethods(),
             'key_id' => 'key_'.bin2hex(random_bytes(12)),
             'secret' => 'sk_'.bin2hex(random_bytes(32)),
             'name' => null,

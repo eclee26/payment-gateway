@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use App\Enums\PaymentMethod;
+
 /**
  * Generates the copy-paste code samples on the dashboard API docs page.
  *
@@ -361,6 +363,7 @@ PY,
             'created_at' => '2026-10-18T09:05:00+00:00',
         ];
         $createBody = [
+            'payment_method' => 'CARD',
             'amount' => 2500,
             'currency' => 'USD',
             'capture_method' => 'manual',
@@ -375,17 +378,18 @@ PY,
                 'method' => 'POST',
                 'path' => '/payments',
                 'summary' => 'Create a payment',
-                'description' => 'Authorize a card. With capture_method "automatic" (the default) the funds are captured at once; with "manual" the payment waits in requires_capture until you capture or cancel it. A declined card returns 402 with the failed payment under "payment".',
+                'description' => 'Start a payment with the provider assigned to your account for the payment method. Cards are authorized: with capture_method "automatic" (the default) the funds are captured at once; with "manual" the payment waits in requires_capture until you capture or cancel it. Other methods return 201 in requires_action with a next_action for the customer (see Payment methods). A decline returns 402 with the failed payment under "payment".',
                 'params' => [
+                    ['payment_method', 'string, required', 'One of: '.implode(', ', array_column(PaymentMethod::cases(), 'value')).'. Must be enabled on your account.'],
                     ['amount', 'integer, required', '1 to '.number_format(config('gateway.max_amount')).', in minor units.'],
-                    ['currency', 'string, required', 'One of: '.implode(', ', config('gateway.currencies')).'.'],
-                    ['capture_method', 'string', '"automatic" (default) or "manual".'],
+                    ['currency', 'string, required', 'One of: '.implode(', ', config('gateway.currencies')).'. Only PHP for methods other than CARD.'],
+                    ['capture_method', 'string', 'CARD only. "automatic" (default) or "manual".'],
                     ['description', 'string', 'Up to 255 characters.'],
                     ['metadata', 'object', 'Up to 20 string values of up to 500 characters each.'],
-                    ['card.number', 'string, required', '13–19 digits passing the Luhn check. Spaces and dashes are allowed.'],
-                    ['card.exp_month', 'integer, required', '1–12.'],
-                    ['card.exp_year', 'integer, required', 'Four digits; the card must not be expired.'],
-                    ['card.cvc', 'string, required', '3 or 4 digits. Never stored.'],
+                    ['card.number', 'string, CARD only', '13–19 digits passing the Luhn check. Spaces and dashes are allowed.'],
+                    ['card.exp_month', 'integer, CARD only', '1–12.'],
+                    ['card.exp_year', 'integer, CARD only', 'Four digits; the card must not be expired.'],
+                    ['card.cvc', 'string, CARD only', '3 or 4 digits. Never stored.'],
                 ],
                 'request' => ['/api/v1/payments', $createBody],
                 'status' => 201,
@@ -437,7 +441,7 @@ PY,
                 'method' => 'POST',
                 'path' => '/payments/{id}/cancel',
                 'summary' => 'Cancel a payment',
-                'description' => 'Release a requires_capture authorization. No body. Captured payments cannot be canceled; refund them instead.',
+                'description' => 'Release a requires_capture authorization, or abandon a requires_action payment the customer has not completed. No body. Captured payments cannot be canceled; refund them instead.',
                 'params' => [],
                 'request' => ["/api/v1/payments/{$id}/cancel"],
                 'status' => 200,
@@ -472,6 +476,35 @@ PY,
     }
 
     /**
+     * A GCASH payment: the request in each language and the pending
+     * response with the next_action the customer must complete.
+     *
+     * @return array{call: array<string, string>, response: string}
+     */
+    public function walletExample(): array
+    {
+        $body = ['payment_method' => 'GCASH', 'amount' => 50000, 'currency' => 'PHP', 'description' => 'Order #1002'];
+
+        return [
+            'call' => $this->call('POST', '/api/v1/payments', $body),
+            'response' => static::json(array_merge($this->examplePayment(), [
+                'id' => 'pay_01j9z3p4r6t8v0x2z4b6d8f0h2',
+                'payment_method' => 'GCASH',
+                'provider' => 'sim_beta',
+                'amount' => 50000,
+                'fee_amount' => 1150,
+                'currency' => 'PHP',
+                'status' => 'requires_action',
+                'capture_method' => 'automatic',
+                'card' => null,
+                'next_action' => ['type' => 'redirect', 'url' => 'https://simulator.invalid/sim_beta/gcash/sim_01j9z3p4r6t8v0x2z4b6d8f0h3'],
+                'description' => 'Order #1002',
+                'metadata' => (object) [],
+            ])),
+        ];
+    }
+
+    /**
      * Pretty-printed JSON as used throughout the docs.
      *
      * @param  array<string, mixed>  $data
@@ -489,13 +522,17 @@ PY,
         return [
             'id' => self::EXAMPLE_PAYMENT_ID,
             'object' => 'payment',
+            'payment_method' => 'CARD',
+            'provider' => 'sim_alpha',
             'amount' => 2500,
             'amount_captured' => 0,
             'amount_refunded' => 0,
+            'fee_amount' => 1573,
             'currency' => 'USD',
             'status' => 'requires_capture',
             'capture_method' => 'manual',
             'card' => ['brand' => 'visa', 'last4' => '4242', 'exp_month' => 12, 'exp_year' => now()->year + 4],
+            'next_action' => null,
             'failure_code' => null,
             'description' => 'Order #1001',
             'metadata' => ['order_id' => '1001'],

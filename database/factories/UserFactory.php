@@ -34,6 +34,26 @@ class UserFactory extends Factory
     }
 
     /**
+     * Configure the model factory.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (User $user) {
+            if (! $user->roles()->exists()) {
+                $user->assignRole('merchant');
+            }
+        });
+    }
+
+    /**
+     * An admin who does not operate a merchant account.
+     */
+    public function admin(): static
+    {
+        return $this->afterCreating(fn (User $user) => $user->syncRoles(['admin']));
+    }
+
+    /**
      * Indicate that the model's email address should be unverified.
      */
     public function unverified(): static

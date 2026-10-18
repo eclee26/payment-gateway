@@ -2,8 +2,7 @@
 
 namespace App\Providers;
 
-use App\Services\Processor\PaymentProcessor;
-use App\Services\Processor\SimulatedProcessor;
+use App\Services\Processor\ProcessorManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -18,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(PaymentProcessor::class, SimulatedProcessor::class);
+        $this->app->singleton(ProcessorManager::class);
     }
 
     /**

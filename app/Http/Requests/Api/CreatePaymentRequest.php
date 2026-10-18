@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api;
 
 use App\Enums\CaptureMethod;
+use App\Enums\PaymentMethod;
 use App\Rules\CardNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -23,8 +24,10 @@ class CreatePaymentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if (is_string($this->input('currency'))) {
-            $this->merge(['currency' => strtoupper($this->input('currency'))]);
+        foreach (['currency', 'payment_method'] as $field) {
+            if (is_string($this->input($field))) {
+                $this->merge([$field => strtoupper($this->input($field))]);
+            }
         }
     }
 
@@ -35,18 +38,21 @@ class CreatePaymentRequest extends FormRequest
      */
     public function rules(): array
     {
+        $card = PaymentMethod::Card->value;
+
         return [
+            'payment_method' => ['required', 'string', Rule::enum(PaymentMethod::class)],
             'amount' => ['required', 'integer', 'min:'.config('gateway.min_amount'), 'max:'.config('gateway.max_amount')],
             'currency' => ['required', 'string', Rule::in(config('gateway.currencies'))],
-            'capture_method' => ['sometimes', Rule::enum(CaptureMethod::class)],
+            'capture_method' => ['sometimes', "prohibited_unless:payment_method,{$card}", Rule::enum(CaptureMethod::class)],
             'description' => ['nullable', 'string', 'max:255'],
             'metadata' => ['nullable', 'array', 'max:20'],
             'metadata.*' => ['nullable', 'string', 'max:500'],
-            'card' => ['required', 'array:number,exp_month,exp_year,cvc'],
-            'card.number' => ['required', 'string', new CardNumber],
-            'card.exp_month' => ['required', 'integer', 'between:1,12'],
-            'card.exp_year' => ['required', 'integer', 'between:'.now()->year.','.(now()->year + 20)],
-            'card.cvc' => ['required', 'string', 'regex:/^\d{3,4}$/'],
+            'card' => ["required_if:payment_method,{$card}", "prohibited_unless:payment_method,{$card}", 'array:number,exp_month,exp_year,cvc'],
+            'card.number' => ["required_if:payment_method,{$card}", 'string', new CardNumber],
+            'card.exp_month' => ["required_if:payment_method,{$card}", 'integer', 'between:1,12'],
+            'card.exp_year' => ["required_if:payment_method,{$card}", 'integer', 'between:'.now()->year.','.(now()->year + 20)],
+            'card.cvc' => ["required_if:payment_method,{$card}", 'string', 'regex:/^\d{3,4}$/'],
         ];
     }
 
@@ -59,7 +65,14 @@ class CreatePaymentRequest extends FormRequest
     {
         return [
             function (Validator $validator) {
-                if ($validator->errors()->hasAny(['card.exp_month', 'card.exp_year'])) {
+                $method = PaymentMethod::tryFrom((string) $this->input('payment_method'));
+
+                if ($method && ! $validator->errors()->has('currency') && ! in_array($this->input('currency'), $method->currencies(), true)) {
+                    $validator->errors()->add('currency', "{$method->value} payments must be in: ".implode(', ', $method->currencies()).'.');
+                }
+            },
+            function (Validator $validator) {
+                if ($this->input('payment_method') !== PaymentMethod::Card->value || $validator->errors()->hasAny(['card.exp_month', 'card.exp_year'])) {
                     return;
                 }
 

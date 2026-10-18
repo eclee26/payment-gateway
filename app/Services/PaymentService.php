@@ -3,56 +3,76 @@
 namespace App\Services;
 
 use App\Enums\CaptureMethod;
+use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Exceptions\PaymentException;
 use App\Models\Merchant;
 use App\Models\Payment;
+use App\Models\Provider;
 use App\Models\Refund;
+use App\Services\Processor\ChargeRequest;
 use App\Services\Processor\PaymentProcessor;
+use App\Services\Processor\ProcessorManager;
+use App\Services\Processor\ProcessorResult;
+use App\Services\Processor\ProviderCallback;
 use App\Support\Card;
 use Illuminate\Support\Facades\DB;
 
 class PaymentService
 {
     public function __construct(
-        private readonly PaymentProcessor $processor,
+        private readonly ProcessorManager $processors,
         private readonly WebhookDispatcher $webhooks,
     ) {}
 
     /**
-     * Authorize a card payment, capturing immediately unless the capture
-     * method is manual. The raw card number is used only in memory.
+     * Start a payment with the provider the merchant has assigned to the
+     * payment method. Cards are authorized (and captured unless the capture
+     * method is manual); other methods wait in requires_action until the
+     * provider reports the outcome. The raw card number is used only in memory.
      *
-     * @param  array{amount: int, currency: string, capture_method?: string, description?: string|null, metadata?: array<string, mixed>|null, card: array{number: string, exp_month: int, exp_year: int, cvc: string}}  $data
+     * @param  array{payment_method: string, amount: int, currency: string, capture_method?: string, description?: string|null, metadata?: array<string, mixed>|null, card?: array{number: string, exp_month: int, exp_year: int, cvc: string}}  $data
      */
     public function create(Merchant $merchant, array $data): Payment
     {
-        $number = Card::normalize($data['card']['number']);
+        $method = PaymentMethod::from($data['payment_method']);
+        $pricing = $merchant->providerFor($method) ?? throw PaymentException::methodUnavailable($method->value);
+        $provider = $pricing->provider;
+
+        $number = $method === PaymentMethod::Card ? Card::normalize($data['card']['number']) : null;
         $currency = strtoupper($data['currency']);
         $captureMethod = CaptureMethod::from($data['capture_method'] ?? CaptureMethod::Automatic->value);
 
-        $result = $this->processor->authorize($number, $data['amount'], $currency);
+        $result = $this->processors->for($provider)->charge(
+            new ChargeRequest($method, $data['amount'], $currency, $number)
+        );
 
         $status = match (true) {
             ! $result->approved => PaymentStatus::Failed,
+            $result->isPendingAction() => PaymentStatus::RequiresAction,
             $captureMethod === CaptureMethod::Manual => PaymentStatus::RequiresCapture,
             default => PaymentStatus::Succeeded,
         };
 
-        return DB::transaction(function () use ($merchant, $data, $number, $currency, $captureMethod, $result, $status) {
+        return DB::transaction(function () use ($merchant, $data, $method, $provider, $pricing, $number, $currency, $captureMethod, $result, $status) {
             $payment = $merchant->payments()->create([
+                'payment_method' => $method,
+                'provider_id' => $provider->id,
+                'provider_reference' => $result->providerReference,
                 'amount' => $data['amount'],
                 'currency' => $currency,
                 'status' => $status,
                 'capture_method' => $captureMethod,
                 'amount_captured' => $status === PaymentStatus::Succeeded ? $data['amount'] : 0,
                 'amount_refunded' => 0,
-                'card_brand' => Card::brand($number),
-                'card_last4' => substr($number, -4),
-                'card_exp_month' => $data['card']['exp_month'],
-                'card_exp_year' => $data['card']['exp_year'],
-                'card_fingerprint' => Card::fingerprint($number),
+                'fee_amount' => $status === PaymentStatus::Failed ? 0 : $pricing->feeFor($data['amount']),
+                'card_brand' => $number ? Card::brand($number) : null,
+                'card_last4' => $number ? substr($number, -4) : null,
+                'card_exp_month' => $number ? $data['card']['exp_month'] : null,
+                'card_exp_year' => $number ? $data['card']['exp_year'] : null,
+                'card_fingerprint' => $number ? Card::fingerprint($number) : null,
                 'failure_code' => $result->declineCode,
+                'next_action' => $result->nextAction,
                 'description' => $data['description'] ?? null,
                 'metadata' => $data['metadata'] ?? null,
             ]);
@@ -85,6 +105,8 @@ class PaymentService
                 throw PaymentException::amountTooLarge('Capture amount exceeds the authorized amount.');
             }
 
+            $this->callProvider($payment, 'capture', fn ($processor) => $processor->capture($payment, $amount));
+
             $payment->update([
                 'amount_captured' => $amount,
                 'status' => PaymentStatus::Succeeded,
@@ -97,18 +119,21 @@ class PaymentService
     }
 
     /**
-     * Release an authorization that has not been captured.
+     * Release an authorization that has not been captured, or abandon a
+     * payment that is still waiting on the customer.
      */
     public function cancel(Payment $payment): Payment
     {
         return DB::transaction(function () use ($payment) {
             $payment = $this->lock($payment);
 
-            if ($payment->status !== PaymentStatus::RequiresCapture) {
+            if (! in_array($payment->status, [PaymentStatus::RequiresCapture, PaymentStatus::RequiresAction], true)) {
                 throw PaymentException::invalidState('cancel', $payment->status->value);
             }
 
-            $payment->update(['status' => PaymentStatus::Canceled]);
+            $this->callProvider($payment, 'cancel', fn ($processor) => $processor->cancel($payment));
+
+            $payment->update(['status' => PaymentStatus::Canceled, 'next_action' => null]);
 
             $this->webhooks->dispatch($payment->merchant, 'payment.canceled', $payment);
 
@@ -134,6 +159,8 @@ class PaymentService
                 throw PaymentException::amountTooLarge('Refund amount exceeds the refundable amount of '.$payment->refundableAmount().'.');
             }
 
+            $this->callProvider($payment, 'refund', fn ($processor) => $processor->refund($payment, $amount));
+
             $refund = $payment->refunds()->make([
                 'amount' => $amount,
                 'reason' => $reason,
@@ -152,6 +179,64 @@ class PaymentService
 
             return $refund;
         });
+    }
+
+    /**
+     * Apply a verified provider callback to the payment it refers to.
+     * Payments no longer waiting on the customer are left untouched, so
+     * repeated callbacks are harmless. Returns null for unknown references.
+     */
+    public function handleProviderCallback(Provider $provider, ProviderCallback $callback): ?Payment
+    {
+        return DB::transaction(function () use ($provider, $callback) {
+            $payment = Payment::where('provider_id', $provider->id)
+                ->where('provider_reference', $callback->providerReference)
+                ->lockForUpdate()
+                ->first();
+
+            if ($payment === null || $payment->status !== PaymentStatus::RequiresAction) {
+                return $payment;
+            }
+
+            if ($callback->succeeded) {
+                $payment->update([
+                    'status' => PaymentStatus::Succeeded,
+                    'amount_captured' => $payment->amount,
+                    'next_action' => null,
+                ]);
+                $this->webhooks->dispatch($payment->merchant, 'payment.succeeded', $payment);
+            } else {
+                $payment->update([
+                    'status' => PaymentStatus::Failed,
+                    'failure_code' => $callback->declineCode,
+                    'fee_amount' => 0,
+                    'next_action' => null,
+                ]);
+                $this->webhooks->dispatch($payment->merchant, 'payment.failed', $payment);
+            }
+
+            return $payment;
+        });
+    }
+
+    /**
+     * Run an operation against the provider that processed the payment,
+     * refusing the change locally if the provider declines it. Payments
+     * created before providers existed have no provider to call.
+     *
+     * @param  callable(PaymentProcessor): ProcessorResult  $operation
+     */
+    private function callProvider(Payment $payment, string $action, callable $operation): void
+    {
+        if ($payment->provider === null) {
+            return;
+        }
+
+        $result = $operation($this->processors->for($payment->provider));
+
+        if (! $result->approved) {
+            throw PaymentException::providerDeclined($action, $result->declineCode);
+        }
     }
 
     /**

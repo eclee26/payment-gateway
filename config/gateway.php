@@ -1,5 +1,7 @@
 <?php
 
+use App\Services\Processor\SimulatedProcessor;
+
 return [
 
     /*
@@ -49,6 +51,28 @@ return [
     'min_amount' => 1,
 
     'max_amount' => 99_999_999,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Providers
+    |--------------------------------------------------------------------------
+    |
+    | Each upstream bank or PSP has its own API and gets its own driver class
+    | implementing App\Services\Processor\PaymentProcessor. Providers stored
+    | in the database name one of these keys as their driver.
+    |
+    | The simulator lets dashboard users complete pending (QR, wallet,
+    | transfer) payments by hand. Never enable it in production.
+    |
+    */
+
+    'provider_drivers' => [
+        'simulated' => SimulatedProcessor::class,
+    ],
+
+    'simulator_enabled' => (bool) env('GATEWAY_SIMULATOR_ENABLED', in_array(env('APP_ENV'), ['local', 'testing'], true)),
+
+    'simulator_callback_secret' => env('GATEWAY_SIMULATOR_CALLBACK_SECRET', env('APP_KEY')),
 
     /*
     |--------------------------------------------------------------------------

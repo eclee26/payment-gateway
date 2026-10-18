@@ -55,6 +55,7 @@ trait SignsApiRequests
     protected function paymentPayload(array $overrides = []): array
     {
         return array_replace_recursive([
+            'payment_method' => 'CARD',
             'amount' => 2500,
             'currency' => 'usd',
             'description' => 'Order #1001',
