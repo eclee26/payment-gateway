@@ -15,7 +15,8 @@
                 <h3 class="font-medium text-gray-900">{{ __('Create a key') }}</h3>
                 <p class="mt-1 text-sm text-gray-500">{{ __('The secret is shown once. Store it securely; it signs every API request.') }}</p>
 
-                <form method="POST" action="{{ route('dashboard.api-keys.store') }}" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+                {{-- Full page load: the response shows the secret once and is not a redirect, which Turbo can't render. --}}
+                <form method="POST" action="{{ route('dashboard.api-keys.store') }}" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" data-turbo="false">
                     @csrf
                     <div class="flex-1">
                         <x-input-label for="name" :value="__('Label (optional)')" />

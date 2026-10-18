@@ -8,6 +8,13 @@ x-laravel-env: &laravel-env
   DB_PASSWORD: ${DB_PASSWORD:-secret}
   COMPOSER_HOME: /tmp/composer
 
+# Source is bind-mounted for live editing, but vendor/ lives in a named volume:
+# it holds most of the files PHP loads, and reading them through the host
+# bind mount is slow. Run composer inside the container to update it.
+x-app-volumes: &app-volumes
+  - .:/var/www/html
+  - vendor:/var/www/html/vendor
+
 # PHP-FPM, artisan, queue and scheduler all run as www-data so files they
 # create in storage/ (logs, compiled views, cache) stay writable by each other.
 services:
@@ -17,8 +24,7 @@ services:
       target: dev
     image: payment-gateway-app:dev
     user: www-data
-    volumes:
-      - .:/var/www/html
+    volumes: *app-volumes
     environment: *laravel-env
     depends_on:
       mysql:
@@ -38,8 +44,7 @@ services:
     image: payment-gateway-app:dev
     user: www-data
     command: php artisan queue:listen --tries=1 --timeout=0
-    volumes:
-      - .:/var/www/html
+    volumes: *app-volumes
     environment: *laravel-env
     depends_on:
       app:
@@ -52,8 +57,7 @@ services:
     image: payment-gateway-app:dev
     user: www-data
     command: php artisan schedule:work
-    volumes:
-      - .:/var/www/html
+    volumes: *app-volumes
     environment: *laravel-env
     depends_on:
       app:
@@ -93,5 +97,6 @@ services:
       - node-modules:/var/www/html/node_modules
 
 volumes:
+  vendor:
   mysql-data:
   node-modules:

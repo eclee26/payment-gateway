@@ -30,7 +30,8 @@
             <div class="bg-white shadow-sm sm:rounded-lg p-6">
                 <h3 class="font-medium text-gray-900">{{ __('Signing secret') }}</h3>
                 <p class="mt-1 text-sm text-gray-500">{{ __('Rotating immediately invalidates the old secret.') }}</p>
-                <form method="POST" action="{{ route('dashboard.webhooks.rotate-secret') }}" class="mt-4" x-data @submit="confirm('Rotate the webhook secret? Your endpoint must be updated with the new one.') || $event.preventDefault()">
+                {{-- Full page load: the response shows the secret once and is not a redirect, which Turbo can't render. --}}
+                <form method="POST" action="{{ route('dashboard.webhooks.rotate-secret') }}" class="mt-4" data-turbo="false" x-data @submit="confirm('Rotate the webhook secret? Your endpoint must be updated with the new one.') || $event.preventDefault()">
                     @csrf
                     <x-secondary-button type="submit">{{ __('Rotate and reveal secret') }}</x-secondary-button>
                 </form>

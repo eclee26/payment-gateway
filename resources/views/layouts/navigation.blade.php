@@ -24,6 +24,9 @@
                     <x-nav-link :href="route('dashboard.webhooks.edit')" :active="request()->routeIs('dashboard.webhooks.*')">
                         {{ __('Webhooks') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('dashboard.docs')" :active="request()->routeIs('dashboard.docs')">
+                        {{ __('API docs') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -48,7 +51,7 @@
                         </x-dropdown-link>
 
                         <!-- Authentication -->
-                        <form method="POST" action="{{ route('logout') }}">
+                        <form method="POST" action="{{ route('logout') }}" data-turbo="false">
                             @csrf
 
                             <x-dropdown-link :href="route('logout')"
@@ -87,6 +90,9 @@
             <x-responsive-nav-link :href="route('dashboard.webhooks.edit')" :active="request()->routeIs('dashboard.webhooks.*')">
                 {{ __('Webhooks') }}
             </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('dashboard.docs')" :active="request()->routeIs('dashboard.docs')">
+                {{ __('API docs') }}
+            </x-responsive-nav-link>
         </div>
 
         <!-- Responsive Settings Options -->
@@ -102,7 +108,7 @@
                 </x-responsive-nav-link>
 
                 <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}" data-turbo="false">
                     @csrf
 
                     <x-responsive-nav-link :href="route('logout')"

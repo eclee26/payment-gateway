@@ -26,6 +26,11 @@
         <env name="DB_CONNECTION" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
         <env name="DB_URL" value="" force="true"/>
+        <!-- Laravel reads $_SERVER before $_ENV, and docker-compose puts the
+             MySQL settings there, so override them in both places. -->
+        <server name="DB_CONNECTION" value="sqlite" force="true"/>
+        <server name="DB_DATABASE" value=":memory:" force="true"/>
+        <server name="DB_URL" value="" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>

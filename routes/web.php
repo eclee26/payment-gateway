@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Dashboard\ApiKeyController;
+use App\Http\Controllers\Dashboard\DocsController;
 use App\Http\Controllers\Dashboard\PaymentController;
 use App\Http\Controllers\Dashboard\WebhookController;
 use App\Http\Controllers\ProfileController;
@@ -17,6 +18,9 @@ Route::middleware(['auth', 'verified', EnsureUserHasMerchant::class])->group(fun
     Route::prefix('dashboard')->name('dashboard.')->group(function () {
         Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
         Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+
+        Route::get('/docs', [DocsController::class, 'show'])->name('docs');
+        Route::get('/docs/postman', [DocsController::class, 'postman'])->name('docs.postman');
 
         // Credential pages require the password to have been confirmed recently.
         // The GET pages are guarded too, because the confirmation redirect

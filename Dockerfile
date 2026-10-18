@@ -20,6 +20,9 @@ WORKDIR /var/www/html
 # ---- Local development (source is bind-mounted by docker-compose) ----
 FROM base AS dev
 COPY docker/php/dev.ini /usr/local/etc/php/conf.d/zz-dev.ini
+# vendor/ lives in a named volume (see docker-compose.yml); a new volume copies
+# this directory's ownership, so www-data can run composer install into it.
+RUN mkdir -p /var/www/html/vendor && chown www-data:www-data /var/www/html/vendor
 
 # ---- Production ----
 FROM base AS prod
