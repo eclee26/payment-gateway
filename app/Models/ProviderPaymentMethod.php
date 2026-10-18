@@ -3,7 +3,10 @@
 namespace App\Models;
 
 use App\Enums\PaymentMethod;
+use App\Services\Processor\ProcessorManager;
 use Database\Factories\ProviderPaymentMethodFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,6 +44,22 @@ class ProviderPaymentMethod extends Model
             'fee_fixed' => 'integer',
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Rows a merchant can be assigned and charged through: the method and
+     * its provider are active, and the provider's driver is registered
+     * (e.g. the simulator is not, outside development).
+     *
+     * @param  Builder<ProviderPaymentMethod>  $query
+     */
+    #[Scope]
+    protected function available(Builder $query): void
+    {
+        $query->where('is_active', true)
+            ->whereHas('provider', fn (Builder $provider) => $provider
+                ->where('is_active', true)
+                ->whereIn('driver', ProcessorManager::drivers()));
     }
 
     /**

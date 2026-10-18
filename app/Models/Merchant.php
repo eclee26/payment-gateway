@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use Database\Factories\MerchantFactory;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -105,26 +107,41 @@ class Merchant extends Model
 
     /**
      * The provider pricing row that handles this payment method for the
-     * merchant, or null when it is unassigned or the provider or method
-     * has been deactivated.
+     * merchant, or null when it is unassigned or no longer available.
      */
     public function providerFor(PaymentMethod $method): ?ProviderPaymentMethod
     {
-        $id = $this->paymentMethodAssignments()
+        return $this->availablePaymentMethodsQuery()
             ->where('payment_method', $method->value)
-            ->value('provider_payment_method_id');
-
-        if ($id === null) {
-            return null;
-        }
-
-        return ProviderPaymentMethod::query()
-            ->whereKey($id)
-            ->where('payment_method', $method->value)
-            ->where('is_active', true)
-            ->whereRelation('provider', 'is_active', true)
-            ->with('provider')
             ->first();
+    }
+
+    /**
+     * Every assigned, available pricing row, keyed by payment method value.
+     *
+     * @return Collection<string, ProviderPaymentMethod>
+     */
+    public function availablePaymentMethods(): Collection
+    {
+        return $this->availablePaymentMethodsQuery()
+            ->get()
+            ->keyBy(fn (ProviderPaymentMethod $row) => $row->payment_method->value);
+    }
+
+    /**
+     * @return Builder<ProviderPaymentMethod>
+     */
+    private function availablePaymentMethodsQuery(): Builder
+    {
+        // Matching the method on both sides guards against an assignment row
+        // whose method disagrees with the pricing row it points at.
+        return ProviderPaymentMethod::query()
+            ->available()
+            ->whereExists(fn ($query) => $query->from('merchant_payment_methods')
+                ->whereColumn('merchant_payment_methods.provider_payment_method_id', 'provider_payment_methods.id')
+                ->whereColumn('merchant_payment_methods.payment_method', 'provider_payment_methods.payment_method')
+                ->where('merchant_payment_methods.merchant_id', $this->id))
+            ->with('provider');
     }
 
     /**

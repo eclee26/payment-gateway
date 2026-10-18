@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\CallbackOutcome;
 use App\Enums\CaptureMethod;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
@@ -17,6 +18,7 @@ use App\Services\Processor\ProcessorResult;
 use App\Services\Processor\ProviderCallback;
 use App\Support\Card;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PaymentService
 {
@@ -73,6 +75,7 @@ class PaymentService
                 'card_fingerprint' => $number ? Card::fingerprint($number) : null,
                 'failure_code' => $result->declineCode,
                 'next_action' => $result->nextAction,
+                'expires_at' => $status === PaymentStatus::RequiresAction ? now()->addMinutes(config('gateway.pending_payment_ttl_minutes')) : null,
                 'description' => $data['description'] ?? null,
                 'metadata' => $data['metadata'] ?? null,
             ]);
@@ -131,14 +134,39 @@ class PaymentService
                 throw PaymentException::invalidState('cancel', $payment->status->value);
             }
 
-            $this->callProvider($payment, 'cancel', fn ($processor) => $processor->cancel($payment));
-
-            $payment->update(['status' => PaymentStatus::Canceled, 'next_action' => null]);
-
-            $this->webhooks->dispatch($payment->merchant, 'payment.canceled', $payment);
-
-            return $payment;
+            return $this->release($payment);
         });
+    }
+
+    /**
+     * Cancel requires_action payments whose customer did not complete them
+     * in time. A provider that refuses the cancel (e.g. the customer is
+     * paying right now) keeps the payment pending for its callback.
+     * Returns how many payments were expired.
+     */
+    public function expirePending(): int
+    {
+        $expired = 0;
+
+        Payment::where('status', PaymentStatus::RequiresAction)
+            ->where('expires_at', '<=', now())
+            ->select('id')
+            ->eachById(function (Payment $candidate) use (&$expired) {
+                try {
+                    DB::transaction(function () use ($candidate, &$expired) {
+                        $payment = $this->lock($candidate);
+
+                        if ($payment->status === PaymentStatus::RequiresAction && $payment->expires_at?->isPast()) {
+                            $this->release($payment, 'expired');
+                            $expired++;
+                        }
+                    });
+                } catch (PaymentException $e) {
+                    Log::warning('Provider refused to expire a pending payment.', ['payment_id' => $candidate->id, 'error' => $e->getMessage()]);
+                }
+            });
+
+        return $expired;
     }
 
     /**
@@ -183,10 +211,12 @@ class PaymentService
 
     /**
      * Apply a verified provider callback to the payment it refers to.
-     * Payments no longer waiting on the customer are left untouched, so
-     * repeated callbacks are harmless. Returns null for unknown references.
+     * Only pending payments change. A repeat of an outcome already applied
+     * is harmless; an outcome contradicting the payment's final state
+     * (success after cancel or expiry, failure after success) is left
+     * unapplied and logged, since money may have moved.
      */
-    public function handleProviderCallback(Provider $provider, ProviderCallback $callback): ?Payment
+    public function handleProviderCallback(Provider $provider, ProviderCallback $callback): CallbackOutcome
     {
         return DB::transaction(function () use ($provider, $callback) {
             $payment = Payment::where('provider_id', $provider->id)
@@ -194,8 +224,28 @@ class PaymentService
                 ->lockForUpdate()
                 ->first();
 
-            if ($payment === null || $payment->status !== PaymentStatus::RequiresAction) {
-                return $payment;
+            if ($payment === null) {
+                return CallbackOutcome::NotFound;
+            }
+
+            if ($payment->status !== PaymentStatus::RequiresAction) {
+                $consistent = $callback->succeeded
+                    ? in_array($payment->status, [PaymentStatus::Succeeded, PaymentStatus::PartiallyRefunded, PaymentStatus::Refunded], true)
+                    : in_array($payment->status, [PaymentStatus::Failed, PaymentStatus::Canceled], true);
+
+                if ($consistent) {
+                    return CallbackOutcome::AlreadyApplied;
+                }
+
+                Log::error('Provider callback contradicts the payment status; reconcile with the provider.', [
+                    'payment_id' => $payment->id,
+                    'provider' => $provider->code,
+                    'provider_reference' => $callback->providerReference,
+                    'payment_status' => $payment->status->value,
+                    'callback_outcome' => $callback->succeeded ? 'succeeded' : 'failed',
+                ]);
+
+                return CallbackOutcome::Conflict;
             }
 
             if ($callback->succeeded) {
@@ -215,8 +265,28 @@ class PaymentService
                 $this->webhooks->dispatch($payment->merchant, 'payment.failed', $payment);
             }
 
-            return $payment;
+            return CallbackOutcome::Applied;
         });
+    }
+
+    /**
+     * Cancel a locked, cancelable payment with its provider. The fee is
+     * dropped because nothing was collected.
+     */
+    private function release(Payment $payment, ?string $reason = null): Payment
+    {
+        $this->callProvider($payment, 'cancel', fn ($processor) => $processor->cancel($payment));
+
+        $payment->update([
+            'status' => PaymentStatus::Canceled,
+            'failure_code' => $reason ?? $payment->failure_code,
+            'fee_amount' => 0,
+            'next_action' => null,
+        ]);
+
+        $this->webhooks->dispatch($payment->merchant, 'payment.canceled', $payment);
+
+        return $payment;
     }
 
     /**

@@ -2,6 +2,8 @@
 
 use App\Services\Processor\SimulatedProcessor;
 
+$simulatorEnabled = (bool) env('GATEWAY_SIMULATOR_ENABLED', in_array(env('APP_ENV'), ['local', 'testing'], true));
+
 return [
 
     /*
@@ -61,18 +63,26 @@ return [
     | implementing App\Services\Processor\PaymentProcessor. Providers stored
     | in the database name one of these keys as their driver.
     |
-    | The simulator lets dashboard users complete pending (QR, wallet,
-    | transfer) payments by hand. Never enable it in production.
+    | The simulated driver approves payments without moving money, so it is
+    | only registered while the simulator is enabled (local and testing by
+    | default). Never enable it in production. Providers whose driver is not
+    | registered cannot be assigned or charged. Its callbacks are rejected
+    | unless a dedicated callback secret is set.
+    |
+    | Payments waiting on the customer (requires_action) are canceled after
+    | pending_payment_ttl_minutes by the scheduled payments:expire-pending.
     |
     */
 
-    'provider_drivers' => [
-        'simulated' => SimulatedProcessor::class,
-    ],
+    'provider_drivers' => array_filter([
+        'simulated' => $simulatorEnabled ? SimulatedProcessor::class : null,
+    ]),
 
-    'simulator_enabled' => (bool) env('GATEWAY_SIMULATOR_ENABLED', in_array(env('APP_ENV'), ['local', 'testing'], true)),
+    'simulator_enabled' => $simulatorEnabled,
 
-    'simulator_callback_secret' => env('GATEWAY_SIMULATOR_CALLBACK_SECRET', env('APP_KEY')),
+    'simulator_callback_secret' => env('GATEWAY_SIMULATOR_CALLBACK_SECRET'),
+
+    'pending_payment_ttl_minutes' => (int) env('GATEWAY_PENDING_PAYMENT_TTL_MINUTES', 30),
 
     /*
     |--------------------------------------------------------------------------

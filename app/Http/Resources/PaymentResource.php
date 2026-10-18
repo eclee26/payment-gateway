@@ -37,6 +37,7 @@ class PaymentResource extends JsonResource
                 'exp_year' => $this->card_exp_year,
             ],
             'next_action' => $this->next_action,
+            'expires_at' => $this->expires_at?->toIso8601String(),
             'failure_code' => $this->failure_code,
             'description' => $this->description,
             'metadata' => $this->metadata ?? (object) [],

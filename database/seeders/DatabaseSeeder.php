@@ -21,6 +21,10 @@ class DatabaseSeeder extends Seeder
         $user = User::where('email', 'test@example.com')->first()
             ?? User::factory()->create(['name' => 'Test User', 'email' => 'test@example.com']);
 
+        if (! $user->hasRole('merchant')) {
+            $user->assignRole('merchant');
+        }
+
         if (! User::where('email', 'admin@example.com')->exists()) {
             User::factory()->admin()->create(['name' => 'Admin', 'email' => 'admin@example.com']);
         }

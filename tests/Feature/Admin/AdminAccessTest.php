@@ -96,6 +96,75 @@ class AdminAccessTest extends TestCase
         $this->assertSame(150, $provider->paymentMethods->first()->fee_bps);
     }
 
+    public function test_provider_code_and_driver_cannot_change_after_creation(): void
+    {
+        $provider = Provider::factory()->offering([PaymentMethod::Gcash])->create(['code' => 'sim_beta']);
+        $admin = User::factory()->admin()->create();
+
+        $this->confirmed($admin)
+            ->put("/admin/providers/{$provider->id}", [
+                'name' => 'Renamed Bank',
+                'code' => 'beta',
+                'driver' => 'something_else',
+                'is_active' => '1',
+                'methods' => ['GCASH' => ['enabled' => '1', 'fee_bps' => '300', 'fee_fixed' => '0']],
+            ])
+            ->assertRedirect('/admin/providers')
+            ->assertSessionHasNoErrors();
+
+        $provider->refresh();
+        $this->assertSame('Renamed Bank', $provider->name);
+        $this->assertSame('sim_beta', $provider->code);
+        $this->assertSame('simulated', $provider->driver);
+        $this->assertSame(300, $provider->paymentMethods()->sole()->fee_bps);
+    }
+
+    public function test_disabling_a_method_keeps_its_row_for_existing_assignments(): void
+    {
+        $provider = Provider::factory()->offering([PaymentMethod::Gcash, PaymentMethod::Maya])->create();
+
+        $this->confirmed(User::factory()->admin()->create())
+            ->put("/admin/providers/{$provider->id}", [
+                'name' => $provider->name,
+                'is_active' => '1',
+                'methods' => ['GCASH' => ['enabled' => '1', 'fee_bps' => '250', 'fee_fixed' => '0']],
+            ])
+            ->assertSessionHasNoErrors();
+
+        $rows = $provider->paymentMethods()->get()->keyBy(fn ($row) => $row->payment_method->value);
+        $this->assertCount(2, $rows);
+        $this->assertTrue($rows['GCASH']->is_active);
+        $this->assertFalse($rows['MAYA']->is_active);
+    }
+
+    public function test_unregistered_driver_providers_are_not_offered_for_assignment(): void
+    {
+        $merchant = Merchant::factory()->create();
+        $provider = Provider::factory()->offering([PaymentMethod::Gcash])->create(['name' => 'Ghost Bank']);
+        config(['gateway.provider_drivers' => []]);
+
+        $this->confirmed(User::factory()->admin()->create())
+            ->get("/admin/merchants/{$merchant->id}/payment-methods")
+            ->assertOk()
+            ->assertDontSee('Ghost Bank');
+        $this->confirmed(User::factory()->admin()->create())
+            ->put("/admin/merchants/{$merchant->id}/payment-methods", ['assignments' => ['GCASH' => $provider->paymentMethods()->sole()->id]])
+            ->assertSessionHasErrors('assignments.GCASH');
+    }
+
+    public function test_backfill_grants_the_merchant_role_to_users_without_a_merchant(): void
+    {
+        $neverVisited = User::factory()->create();
+        $neverVisited->syncRoles([]);
+        $admin = User::factory()->admin()->create();
+
+        (require database_path('migrations/2026_10_19_000001_grant_merchant_role_to_users_without_roles.php'))->up();
+
+        $this->assertTrue($neverVisited->fresh()->hasRole('merchant'));
+        $this->assertFalse($admin->fresh()->hasRole('merchant'));
+        $this->actingAs($neverVisited->fresh())->get('/dashboard')->assertOk();
+    }
+
     public function test_provider_driver_must_be_configured(): void
     {
         $this->confirmed(User::factory()->admin()->create())

@@ -42,10 +42,19 @@ class SaveProviderRequest extends FormRequest
     {
         $methods = array_column(PaymentMethod::cases(), 'value');
 
+        // Code and driver are fixed once the provider exists: callbacks are
+        // routed by code, and in-flight payments capture, cancel and refund
+        // through the driver they were created with.
+        $creating = $this->route('provider') === null;
+
         return [
-            'code' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9][a-z0-9_-]*$/', Rule::unique('providers', 'code')->ignore($this->route('provider'))],
+            'code' => $creating
+                ? ['required', 'string', 'max:64', 'regex:/^[a-z0-9][a-z0-9_-]*$/', Rule::unique('providers', 'code')]
+                : ['exclude'],
             'name' => ['required', 'string', 'max:255'],
-            'driver' => ['required', 'string', Rule::in(ProcessorManager::drivers())],
+            'driver' => $creating
+                ? ['required', 'string', Rule::in(ProcessorManager::drivers())]
+                : ['exclude'],
             'is_active' => ['boolean'],
             'methods' => ['nullable', 'array:'.implode(',', $methods)],
             'methods.*' => ['array:enabled,fee_bps,fee_fixed'],

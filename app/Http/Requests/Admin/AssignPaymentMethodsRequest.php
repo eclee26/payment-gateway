@@ -48,10 +48,9 @@ class AssignPaymentMethodsRequest extends FormRequest
                 }
 
                 foreach ($this->assignments() as $method => $id) {
-                    $valid = ProviderPaymentMethod::whereKey($id)
+                    $valid = ProviderPaymentMethod::available()
+                        ->whereKey($id)
                         ->where('payment_method', $method)
-                        ->where('is_active', true)
-                        ->whereRelation('provider', 'is_active', true)
                         ->exists();
 
                     if (! $valid) {

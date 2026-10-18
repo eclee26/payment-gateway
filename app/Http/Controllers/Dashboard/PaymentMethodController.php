@@ -15,11 +15,11 @@ class PaymentMethodController extends Controller
      */
     public function index(Request $request): View
     {
-        $merchant = $request->user()->merchant;
+        $available = $request->user()->merchant->availablePaymentMethods();
 
         return view('dashboard.payment-methods.index', [
             'methods' => collect(PaymentMethod::cases())->mapWithKeys(fn (PaymentMethod $method) => [
-                $method->value => ['method' => $method, 'pricing' => $merchant->providerFor($method)],
+                $method->value => ['method' => $method, 'pricing' => $available->get($method->value)],
             ]),
         ]);
     }

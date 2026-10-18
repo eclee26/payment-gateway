@@ -31,9 +31,8 @@ class MerchantPaymentMethodController extends Controller
      */
     public function edit(Merchant $merchant): View
     {
-        $options = ProviderPaymentMethod::with('provider')
-            ->where('is_active', true)
-            ->whereRelation('provider', 'is_active', true)
+        $options = ProviderPaymentMethod::available()
+            ->with('provider')
             ->get()
             ->groupBy(fn ($row) => $row->payment_method->value);
 

@@ -21,17 +21,22 @@
                     </div>
                     <div>
                         <x-input-label for="code" :value="__('Code')" />
-                        <x-text-input id="code" name="code" type="text" class="mt-1 block w-full font-mono" :value="old('code', $provider->code)" required />
-                        <p class="mt-1 text-xs text-gray-500">{{ __('Lowercase slug, used in the callback URL and API responses.') }}</p>
+                        <x-text-input id="code" name="code" type="text" class="mt-1 block w-full font-mono disabled:bg-gray-100" :value="old('code', $provider->code)" required :disabled="$provider->exists" />
+                        <p class="mt-1 text-xs text-gray-500">{{ $provider->exists ? __('Fixed: providers post callbacks to a URL containing it.') : __('Lowercase slug, used in the callback URL and API responses. Cannot be changed later.') }}</p>
                         <x-input-error :messages="$errors->get('code')" class="mt-2" />
                     </div>
                     <div>
                         <x-input-label for="driver" :value="__('Driver')" />
-                        <select id="driver" name="driver" class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
-                            @foreach ($drivers as $driver)
-                                <option value="{{ $driver }}" @selected(old('driver', $provider->driver) === $driver)>{{ $driver }}</option>
-                            @endforeach
-                        </select>
+                        @if ($provider->exists)
+                            <x-text-input id="driver" type="text" class="mt-1 block w-full font-mono bg-gray-100" :value="$provider->driver" disabled />
+                            <p class="mt-1 text-xs text-gray-500">{{ __('Fixed: existing payments use this driver.') }}</p>
+                        @else
+                            <select id="driver" name="driver" class="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm">
+                                @foreach ($drivers as $driver)
+                                    <option value="{{ $driver }}" @selected(old('driver', $provider->driver) === $driver)>{{ $driver }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         <x-input-error :messages="$errors->get('driver')" class="mt-2" />
                     </div>
                     <label class="inline-flex items-center gap-2 text-sm text-gray-700">

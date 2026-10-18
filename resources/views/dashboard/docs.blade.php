@@ -233,7 +233,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <p class="{{ $p }}">{{ __('Methods other than CARD accept PHP only, cannot use capture_method, and must not include "card". They start in requires_action; when the provider reports the outcome the payment moves to succeeded or failed and you receive a payment.succeeded or payment.failed webhook. fee_amount is the provider fee in minor units.') }}</p>
+                    <p class="{{ $p }}">{{ __('Methods other than CARD accept PHP only, cannot use capture_method, and must not include "card". They start in requires_action; when the provider reports the outcome the payment moves to succeeded or failed and you receive a payment.succeeded or payment.failed webhook. If the customer does not finish by expires_at (:minutes minutes), the payment is canceled with failure_code "expired" and you receive payment.canceled. fee_amount is the provider fee in minor units; it is 0 for failed and canceled payments.', ['minutes' => config('gateway.pending_payment_ttl_minutes')]) }}</p>
                     <h3 class="{{ $h3 }}">{{ __('Example: GCash') }}</h3>
                     @php($wallet = $samples->walletExample())
                     <x-docs.code-tabs :samples="$wallet['call']" />

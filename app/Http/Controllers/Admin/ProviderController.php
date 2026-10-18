@@ -73,15 +73,16 @@ class ProviderController extends Controller
      */
     private function syncMethods(Provider $provider, array $methods): void
     {
+        $existing = $provider->paymentMethods()->get()->keyBy(fn ($row) => $row->payment_method->value);
+
         foreach (PaymentMethod::cases() as $method) {
             $row = $methods[$method->value] ?? ['is_active' => false];
-            $existing = $provider->paymentMethods()->where('payment_method', $method->value)->first();
 
-            if ($existing === null && ! $row['is_active']) {
-                continue;
+            if ($current = $existing->get($method->value)) {
+                $current->update($row);
+            } elseif ($row['is_active']) {
+                $provider->paymentMethods()->create(['payment_method' => $method->value] + $row);
             }
-
-            $provider->paymentMethods()->updateOrCreate(['payment_method' => $method->value], $row);
         }
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Models\IdempotencyKey;
 use App\Models\User;
+use App\Services\PaymentService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -25,4 +26,10 @@ Artisan::command('user:grant-admin {email}', function (string $email) {
     return 0;
 })->purpose('Give a user the admin role (manage providers and merchant assignments)');
 
+Artisan::command('payments:expire-pending', function (PaymentService $payments) {
+    $this->info($payments->expirePending().' pending payment(s) expired.');
+})->purpose('Cancel requires_action payments past their expires_at');
+
 Schedule::command('model:prune', ['--model' => [IdempotencyKey::class]])->hourly();
+
+Schedule::command('payments:expire-pending')->everyMinute()->withoutOverlapping();

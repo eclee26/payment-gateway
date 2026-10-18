@@ -213,6 +213,40 @@ class PaymentMethodRoutingTest extends TestCase
         $this->api($key, 'POST', "/api/v1/payments/{$id}/cancel")
             ->assertOk()
             ->assertJsonPath('status', 'canceled')
-            ->assertJsonPath('next_action', null);
+            ->assertJsonPath('next_action', null)
+            ->assertJsonPath('fee_amount', 0);
+    }
+
+    public function test_canceled_card_authorization_has_no_fee(): void
+    {
+        $key = ApiKey::factory()->create();
+        $created = $this->api($key, 'POST', '/api/v1/payments', $this->paymentPayload(['capture_method' => 'manual']));
+        $this->assertGreaterThan(0, $created->json('fee_amount'));
+
+        $this->api($key, 'POST', '/api/v1/payments/'.$created->json('id').'/cancel')
+            ->assertOk()
+            ->assertJsonPath('fee_amount', 0);
+    }
+
+    public function test_pending_payment_reports_when_it_expires(): void
+    {
+        $key = $this->keyWith([PaymentMethod::Gcash]);
+
+        $expiresAt = $this->api($key, 'POST', '/api/v1/payments', $this->walletPayload())->json('expires_at');
+
+        $this->assertNotNull($expiresAt);
+        $this->api($key, 'POST', '/api/v1/payments', $this->walletPayload('GCASH', ['amount' => 1]))->assertCreated();
+    }
+
+    public function test_providers_with_unregistered_drivers_cannot_be_charged(): void
+    {
+        // As in production, where the simulator is disabled.
+        config(['gateway.provider_drivers' => []]);
+        $key = ApiKey::factory()->create();
+
+        $this->api($key, 'POST', '/api/v1/payments', $this->paymentPayload())
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'payment_method_unavailable');
+        $this->assertDatabaseCount('payments', 0);
     }
 }

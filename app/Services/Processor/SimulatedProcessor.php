@@ -64,8 +64,15 @@ class SimulatedProcessor implements PaymentProcessor
      */
     public function parseCallback(Request $request): ?ProviderCallback
     {
+        $secret = (string) config('gateway.simulator_callback_secret');
+
+        // No secret configured: nobody can produce a valid callback.
+        if ($secret === '') {
+            return null;
+        }
+
         $body = $request->getContent();
-        $expected = static::sign($body);
+        $expected = hash_hmac('sha256', $body, $secret);
 
         if (! hash_equals($expected, (string) $request->header('X-Simulator-Signature'))) {
             return null;
@@ -85,7 +92,8 @@ class SimulatedProcessor implements PaymentProcessor
     }
 
     /**
-     * Sign a callback body the way the simulated provider does.
+     * Sign a callback body the way the simulated provider does
+     * (GATEWAY_SIMULATOR_CALLBACK_SECRET).
      */
     public static function sign(string $body): string
     {
