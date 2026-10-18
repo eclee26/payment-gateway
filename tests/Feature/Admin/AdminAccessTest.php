@@ -72,8 +72,13 @@ class AdminAccessTest extends TestCase
         Role::findByName('admin')->revokePermissionTo('merchant-providers.assign');
         $user = User::factory()->admin()->create();
 
+        $merchant = Merchant::factory()->create();
+
         $this->confirmed($user)->get('/admin/providers')->assertOk();
-        $this->confirmed($user)->get('/admin/merchants')->assertForbidden();
+        // merchants.view still shows the list, but not the assignment page.
+        $this->confirmed($user)->get('/admin/merchants')->assertOk()->assertDontSee("/admin/merchants/{$merchant->id}/payment-methods");
+        $this->confirmed($user)->get("/admin/merchants/{$merchant->id}/payment-methods")->assertForbidden();
+        $this->confirmed($user)->put("/admin/merchants/{$merchant->id}/payment-methods", ['assignments' => []])->assertForbidden();
     }
 
     public function test_admin_creates_a_provider_with_pricing(): void

@@ -29,7 +29,7 @@
         '# Windows PowerShell',
         '$env:GATEWAY_SECRET = "sk_your_secret"',
     ]);
-    $card = 'bg-white shadow-sm sm:rounded-lg p-6';
+    $card = 'card p-6';
     $h2 = 'group flex items-center gap-2 text-lg font-semibold text-gray-900';
     $h3 = 'mt-6 font-medium text-gray-900';
     $p = 'mt-2 text-sm text-gray-600';
@@ -38,19 +38,16 @@
     $inlineCode = 'rounded bg-gray-100 px-1 py-0.5 font-mono text-xs text-gray-800';
 @endphp
 
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">{{ __('API documentation') }}</h2>
-            <span class="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700">{{ $baseUrl }}/api/v1</span>
-        </div>
+<x-app-layout :title="__('API documentation')" :subtitle="__('Everything you need to integrate with the payments API.')">
+    <x-slot name="actions">
+        <span class="badge-gray font-mono">{{ $baseUrl }}/api/v1</span>
     </x-slot>
 
-    <div class="py-12" x-data="apiDocs('curl')">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 lg:grid lg:grid-cols-[13rem_1fr] lg:gap-8">
+    <div x-data="apiDocs('curl')">
+        <div class="lg:grid lg:grid-cols-[13rem_1fr] lg:gap-8">
             {{-- Sidebar --}}
             <nav class="hidden lg:block" aria-label="{{ __('Documentation') }}">
-                <div class="sticky top-6 space-y-6 text-sm">
+                <div class="sticky top-24 space-y-6 text-sm">
                     <div>
                         <div class="px-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{{ __('Guides') }}</div>
                         <ul class="mt-2 space-y-1">

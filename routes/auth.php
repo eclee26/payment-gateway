@@ -8,6 +8,8 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\TwoFactorChallengeController;
+use App\Http\Controllers\Auth\TwoFactorSetupController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,6 +35,12 @@ Route::middleware('guest')->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    Route::get('two-factor-challenge', [TwoFactorChallengeController::class, 'create'])
+        ->name('two-factor.challenge');
+
+    Route::post('two-factor-challenge', [TwoFactorChallengeController::class, 'store'])
+        ->name('two-factor.challenge.store');
 });
 
 Route::middleware('auth')->group(function () {
@@ -53,6 +61,23 @@ Route::middleware('auth')->group(function () {
     Route::post('confirm-password', [ConfirmablePasswordController::class, 'store']);
 
     Route::put('password', [PasswordController::class, 'update'])->name('password.update');
+
+    Route::get('two-factor/setup', [TwoFactorSetupController::class, 'create'])
+        ->name('two-factor.setup');
+
+    Route::post('two-factor/setup', [TwoFactorSetupController::class, 'store'])
+        ->middleware('throttle:6,1')
+        ->name('two-factor.setup.store');
+
+    Route::get('two-factor/recovery-codes', [TwoFactorSetupController::class, 'recoveryCodes'])
+        ->name('two-factor.recovery-codes');
+
+    Route::get('security', [TwoFactorSetupController::class, 'security'])
+        ->name('profile.security');
+
+    Route::post('two-factor/recovery-codes', [TwoFactorSetupController::class, 'regenerateRecoveryCodes'])
+        ->middleware('password.confirm')
+        ->name('two-factor.recovery-codes.regenerate');
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');

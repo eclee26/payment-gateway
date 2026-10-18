@@ -1,26 +1,22 @@
-<x-app-layout>
+<x-app-layout :title="__('New webhook secret')">
     @push('head')
         {{-- Never keep this page in Turbo's back/forward cache: it contains a secret. --}}
         <meta name="turbo-cache-control" content="no-cache">
     @endpush
 
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('New webhook secret') }}
-        </h2>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
-                <div class="rounded-md bg-yellow-50 p-4 text-sm text-yellow-800">
-                    {{ __('Copy the secret now and update your endpoint. It will not be shown again.') }}
-                </div>
-
-                <code class="block break-all rounded bg-gray-100 p-3 font-mono text-sm">{{ $secret }}</code>
-
-                <a href="{{ route('dashboard.webhooks.edit') }}" class="inline-block text-sm text-indigo-600 hover:underline">{{ __('Back to webhooks') }}</a>
+    <div class="card max-w-3xl">
+        <div class="card-body space-y-5">
+            <div class="flex items-start gap-3 rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+                <x-icon name="exclamation-triangle" class="text-amber-500" />
+                <p>{{ __('Copy the secret now and update your endpoint. It will not be shown again.') }}</p>
             </div>
+
+            <div x-data="copyable" class="flex items-center gap-2">
+                <code x-ref="code" class="block flex-1 break-all rounded-lg bg-slate-100 p-3 font-mono text-sm">{{ $secret }}</code>
+                <button type="button" class="btn-secondary btn-sm" @click="copy()" x-text="copied ? '{{ __('Copied') }}' : '{{ __('Copy') }}'">{{ __('Copy') }}</button>
+            </div>
+
+            <a href="{{ route('dashboard.webhooks.edit') }}" class="btn-secondary">{{ __('Back to webhooks') }}</a>
         </div>
     </div>
 </x-app-layout>

@@ -19,7 +19,10 @@ class AuthenticationTest extends TestCase
 
     public function test_users_can_authenticate_using_the_login_screen(): void
     {
-        $user = User::factory()->create();
+        // With TOTP set up, login continues at the challenge
+        // (TwoFactorChallengeTest); without it the user is logged in and
+        // then sent to setup.
+        $user = User::factory()->withoutTwoFactor()->create();
 
         $response = $this->post('/login', [
             'email' => $user->email,

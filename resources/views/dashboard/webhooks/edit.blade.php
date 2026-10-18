@@ -1,73 +1,80 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Webhooks') }}
-        </h2>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            @if (session('status'))
-                <div class="rounded-md bg-green-50 p-4 text-sm text-green-700">{{ session('status') }}</div>
-            @endif
-
-            <div class="bg-white shadow-sm sm:rounded-lg p-6">
-                <h3 class="font-medium text-gray-900">{{ __('Endpoint') }}</h3>
-                <p class="mt-1 text-sm text-gray-500">{{ __('Events are POSTed as JSON and signed with the X-Gateway-Signature header: t=<timestamp>,v1=HMAC-SHA256(secret, "<timestamp>.<body>").') }}</p>
-
-                <form method="POST" action="{{ route('dashboard.webhooks.update') }}" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
-                    @csrf
-                    @method('PUT')
-                    <div class="flex-1">
-                        <x-input-label for="webhook_url" :value="__('URL')" />
-                        <x-text-input id="webhook_url" name="webhook_url" type="url" class="mt-1 block w-full" :value="old('webhook_url', $merchant->webhook_url)" placeholder="https://example.com/webhooks/gateway" />
-                        <x-input-error :messages="$errors->get('webhook_url')" class="mt-2" />
-                    </div>
-                    <x-primary-button>{{ __('Save') }}</x-primary-button>
-                </form>
+<x-app-layout :title="__('Webhooks')" :subtitle="__('Get notified when payments change state.')">
+    <div class="grid gap-6 lg:grid-cols-2">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">{{ __('Endpoint') }}</h2>
+                    <p class="mt-1 text-sm text-slate-500">{{ __('Events are POSTed as JSON and signed with the X-Gateway-Signature header: t=<timestamp>,v1=HMAC-SHA256(secret, "<timestamp>.<body>").') }}</p>
+                </div>
             </div>
+            <form method="POST" action="{{ route('dashboard.webhooks.update') }}" class="card-body space-y-4">
+                @csrf
+                @method('PUT')
+                <div>
+                    <x-input-label for="webhook_url" :value="__('URL')" />
+                    <x-text-input id="webhook_url" name="webhook_url" type="url" class="mt-1" :value="old('webhook_url', $merchant->webhook_url)" placeholder="https://example.com/webhooks/gateway" />
+                    <x-input-error :messages="$errors->get('webhook_url')" class="mt-2" />
+                </div>
+                <x-primary-button>{{ __('Save') }}</x-primary-button>
+            </form>
+        </div>
 
-            <div class="bg-white shadow-sm sm:rounded-lg p-6">
-                <h3 class="font-medium text-gray-900">{{ __('Signing secret') }}</h3>
-                <p class="mt-1 text-sm text-gray-500">{{ __('Rotating immediately invalidates the old secret.') }}</p>
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">{{ __('Signing secret') }}</h2>
+                    <p class="mt-1 text-sm text-slate-500">{{ __('Rotating immediately invalidates the old secret.') }}</p>
+                </div>
+            </div>
+            <div class="card-body">
                 {{-- Full page load: the response shows the secret once and is not a redirect, which Turbo can't render. --}}
-                <form method="POST" action="{{ route('dashboard.webhooks.rotate-secret') }}" class="mt-4" data-turbo="false" x-data @submit="confirm('Rotate the webhook secret? Your endpoint must be updated with the new one.') || $event.preventDefault()">
+                <form method="POST" action="{{ route('dashboard.webhooks.rotate-secret') }}" data-turbo="false" x-data @submit="confirm('Rotate the webhook secret? Your endpoint must be updated with the new one.') || $event.preventDefault()">
                     @csrf
-                    <x-secondary-button type="submit">{{ __('Rotate and reveal secret') }}</x-secondary-button>
+                    <button type="submit" class="btn-secondary">
+                        <x-icon name="arrow-path" class="size-4" /> {{ __('Rotate and reveal secret') }}
+                    </button>
                 </form>
-            </div>
-
-            <div class="bg-white shadow-sm sm:rounded-lg">
-                <h3 class="p-6 pb-0 font-medium text-gray-900">{{ __('Recent deliveries') }}</h3>
-                @if ($deliveries->isEmpty())
-                    <p class="p-6 text-sm text-gray-500">{{ __('No deliveries yet.') }}</p>
-                @else
-                    <div class="mt-4 overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Event') }}</th>
-                                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Attempts') }}</th>
-                                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Last status') }}</th>
-                                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Result') }}</th>
-                                    <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Created') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
-                                @foreach ($deliveries as $delivery)
-                                    <tr>
-                                        <td class="px-4 py-3 font-mono">{{ $delivery->event_type }}</td>
-                                        <td class="px-4 py-3">{{ $delivery->attempts }}</td>
-                                        <td class="px-4 py-3">{{ $delivery->last_response_status ?? '—' }}</td>
-                                        <td class="px-4 py-3">{{ $delivery->delivered_at ? __('Delivered') : ($delivery->last_error ?? __('Pending')) }}</td>
-                                        <td class="px-4 py-3 text-gray-500">{{ $delivery->created_at->toDayDateTimeString() }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
             </div>
         </div>
+    </div>
+
+    <div class="card overflow-hidden">
+        <div class="card-header"><h2 class="card-title">{{ __('Recent deliveries') }}</h2></div>
+        @if ($deliveries->isEmpty())
+            <x-empty-state icon="bolt" :title="__('No deliveries yet.')" :description="__('Deliveries appear here once payments start changing state.')" />
+        @else
+            <div class="overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Event') }}</th>
+                            <th>{{ __('Attempts') }}</th>
+                            <th>{{ __('Last status') }}</th>
+                            <th>{{ __('Result') }}</th>
+                            <th>{{ __('Created') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($deliveries as $delivery)
+                            <tr>
+                                <td class="font-mono text-xs">{{ $delivery->event_type }}</td>
+                                <td class="tabular-nums">{{ $delivery->attempts }}</td>
+                                <td>{{ $delivery->last_response_status ?? '—' }}</td>
+                                <td>
+                                    @if ($delivery->delivered_at)
+                                        <span class="badge-green">{{ __('Delivered') }}</span>
+                                    @elseif ($delivery->last_error)
+                                        <span class="badge-red" title="{{ $delivery->last_error }}">{{ Str::limit($delivery->last_error, 40) }}</span>
+                                    @else
+                                        <span class="badge-amber">{{ __('Pending') }}</span>
+                                    @endif
+                                </td>
+                                <td class="whitespace-nowrap text-slate-500">{{ $delivery->created_at->toDayDateTimeString() }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        @endif
     </div>
 </x-app-layout>

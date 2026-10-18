@@ -18,15 +18,21 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Seeded accounts have no TOTP yet: each is asked to set it up at
+        // first sign-in.
         $user = User::where('email', 'test@example.com')->first()
-            ?? User::factory()->create(['name' => 'Test User', 'email' => 'test@example.com']);
+            ?? User::factory()->withoutTwoFactor()->create(['name' => 'Test User', 'email' => 'test@example.com']);
 
         if (! $user->hasRole('merchant')) {
             $user->assignRole('merchant');
         }
 
         if (! User::where('email', 'admin@example.com')->exists()) {
-            User::factory()->admin()->create(['name' => 'Admin', 'email' => 'admin@example.com']);
+            User::factory()->withoutTwoFactor()->admin()->create(['name' => 'Admin', 'email' => 'admin@example.com']);
+        }
+
+        if (! User::where('email', 'superadmin@example.com')->exists()) {
+            User::factory()->withoutTwoFactor()->superAdmin()->create(['name' => 'Super Admin', 'email' => 'superadmin@example.com']);
         }
 
         // Two simulated providers offering overlapping methods at different prices.

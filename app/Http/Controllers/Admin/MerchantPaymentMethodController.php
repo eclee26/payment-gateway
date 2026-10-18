@@ -14,18 +14,6 @@ use Illuminate\View\View;
 class MerchantPaymentMethodController extends Controller
 {
     /**
-     * All merchants with their current assignments.
-     */
-    public function index(): View
-    {
-        return view('admin.merchants.index', [
-            'merchants' => Merchant::with(['user', 'paymentMethodAssignments.providerPaymentMethod.provider'])
-                ->orderBy('name')
-                ->paginate(25),
-        ]);
-    }
-
-    /**
      * One provider select per payment method, listing the active providers
      * that offer it with their pricing.
      */

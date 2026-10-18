@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
+use App\Support\Permissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -47,6 +48,11 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        if (Permissions::isLastSuperAdmin($user)) {
+            return Redirect::route('profile.edit')
+                ->withErrors(['password' => __('You are the only super-admin. Make someone else a super-admin before deleting your account.')], 'userDeletion');
+        }
 
         Auth::logout();
 

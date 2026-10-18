@@ -2,15 +2,17 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Permissions;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Admins do not operate a merchant account. Send them to the admin area
- * instead of the merchant dashboard (where EnsureUserHasMerchant would
- * otherwise create a merchant for them). Login and verification redirect
- * to the dashboard, so this is also how admins land in the admin area.
+ * Staff (super-admins and any role with admin permissions) do not operate a
+ * merchant account. Send them to the admin area instead of the merchant
+ * dashboard (where EnsureUserHasMerchant would otherwise create a merchant
+ * for them). Login and verification redirect to the dashboard, so this is
+ * also how staff land in the admin area.
  */
 class RedirectAdminsToAdminArea
 {
@@ -23,7 +25,7 @@ class RedirectAdminsToAdminArea
     {
         $user = $request->user();
 
-        if ($user->hasRole('admin') && ! $user->hasRole('merchant')) {
+        if (! $user->hasRole(Permissions::MERCHANT) && $user->isStaff()) {
             return redirect()->route('admin.home');
         }
 

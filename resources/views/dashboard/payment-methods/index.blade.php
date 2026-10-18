@@ -1,41 +1,33 @@
-<x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Payment methods') }}
-        </h2>
-    </x-slot>
-
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="bg-white shadow-sm sm:rounded-lg">
-                <p class="p-6 pb-0 text-sm text-gray-500">{{ __('Send one of these as payment_method when creating a payment. Contact support to enable a method or change its provider.') }}</p>
-                <div class="mt-4 overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200 text-sm">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Method') }}</th>
-                                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Provider') }}</th>
-                                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Fee') }}</th>
-                                <th class="px-4 py-3 text-start font-medium text-gray-500">{{ __('Currencies') }}</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            @foreach ($methods as $value => $entry)
-                                <tr>
-                                    <td class="px-4 py-3">{{ $entry['method']->label() }} <span class="font-mono text-xs text-gray-500">{{ $value }}</span></td>
-                                    @if ($entry['pricing'])
-                                        <td class="px-4 py-3">{{ $entry['pricing']->provider->name }}</td>
-                                        <td class="px-4 py-3">{{ $entry['pricing']->pricingLabel() }}</td>
-                                    @else
-                                        <td class="px-4 py-3 text-gray-500" colspan="2">{{ __('Not enabled') }}</td>
-                                    @endif
-                                    <td class="px-4 py-3 text-gray-500">{{ implode(', ', $entry['method']->currencies()) }}</td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+<x-app-layout :title="__('Payment methods')" :subtitle="__('Send one of these as payment_method when creating a payment. Contact support to enable a method or change its provider.')">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        @foreach ($methods as $value => $entry)
+            <div @class(['card p-5', 'opacity-60' => ! $entry['pricing']])>
+                <div class="flex items-start justify-between gap-3">
+                    <div>
+                        <p class="font-semibold text-slate-900">{{ $entry['method']->label() }}</p>
+                        <p class="font-mono text-xs text-slate-400">{{ $value }}</p>
+                    </div>
+                    @if ($entry['pricing'])
+                        <span class="badge-green">{{ __('Enabled') }}</span>
+                    @else
+                        <span class="badge-gray">{{ __('Not enabled') }}</span>
+                    @endif
                 </div>
+                <dl class="mt-4 grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <dt class="text-xs text-slate-500">{{ __('Provider') }}</dt>
+                        <dd class="font-medium text-slate-800">{{ $entry['pricing']?->provider->name ?? '—' }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-xs text-slate-500">{{ __('Fee') }}</dt>
+                        <dd class="font-medium text-slate-800">{{ $entry['pricing']?->pricingLabel() ?? '—' }}</dd>
+                    </div>
+                    <div class="col-span-2">
+                        <dt class="text-xs text-slate-500">{{ __('Currencies') }}</dt>
+                        <dd class="text-slate-700">{{ implode(', ', $entry['method']->currencies()) }}</dd>
+                    </div>
+                </dl>
             </div>
-        </div>
+        @endforeach
     </div>
 </x-app-layout>

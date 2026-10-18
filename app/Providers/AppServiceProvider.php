@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use App\Services\Processor\ProcessorManager;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
@@ -26,6 +28,10 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         JsonResource::withoutWrapping();
+
+        // super-admin holds every permission without storing them, so new
+        // permissions never need to be granted to it.
+        Gate::before(fn (User $user) => $user->isSuperAdmin() ? true : null);
 
         // Turbo keeps the page's JS/CSS across navigations; when a new build
         // changes these tags, force a full reload so stale assets aren't used.

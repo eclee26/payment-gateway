@@ -1,16 +1,21 @@
 <?php
 
+use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\MerchantController;
 use App\Http\Controllers\Admin\MerchantPaymentMethodController;
 use App\Http\Controllers\Admin\ProviderController;
+use App\Http\Controllers\Admin\RoleController;
+use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Dashboard\ApiKeyController;
 use App\Http\Controllers\Dashboard\DocsController;
 use App\Http\Controllers\Dashboard\PaymentController;
 use App\Http\Controllers\Dashboard\PaymentMethodController;
 use App\Http\Controllers\Dashboard\WebhookController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Middleware\EnsureStaffAccess;
 use App\Http\Middleware\EnsureUserHasMerchant;
 use App\Http\Middleware\RedirectAdminsToAdminArea;
-use Illuminate\Http\Request;
+use App\Support\Navigation;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -44,26 +49,43 @@ Route::middleware(['auth', 'verified', RedirectAdminsToAdminArea::class, 'role:m
     });
 });
 
-// Provider management and merchant assignments. Changing which bank
-// processes a merchant's money is sensitive, so the password must have
-// been confirmed recently.
-Route::middleware(['auth', 'verified', 'role:admin', 'password.confirm'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', function (Request $request) {
-        return redirect()->route($request->user()->can('merchant-providers.assign') ? 'admin.merchants.index' : 'admin.providers.index');
-    })->name('home');
+// The admin area. Open to any staff role; each route checks its own
+// permission, and the sidebar (App\Support\Navigation) uses the same rules.
+// Changing which bank processes a merchant's money, or who may do so, is
+// sensitive, so the password must have been confirmed recently.
+Route::middleware(['auth', 'verified', EnsureStaffAccess::class, 'password.confirm'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [DashboardController::class, 'index'])->name('home');
+
+    Route::get('/users', [UserController::class, 'index'])->middleware('permission:users.view')->name('users.index');
+    Route::get('/users/create', [UserController::class, 'create'])->middleware('permission:users.create')->name('users.create');
+    Route::post('/users', [UserController::class, 'store'])->middleware('permission:users.create')->name('users.store');
+    Route::get('/users/{user}/edit', [UserController::class, 'edit'])->middleware('permission:users.update')->name('users.edit');
+    Route::put('/users/{user}', [UserController::class, 'update'])->middleware('permission:users.update')->name('users.update');
+    Route::post('/users/{user}/reset-two-factor', [UserController::class, 'resetTwoFactor'])->middleware('permission:users.update')->name('users.reset-two-factor');
+    Route::delete('/users/{user}', [UserController::class, 'destroy'])->middleware('permission:users.delete')->name('users.destroy');
+
+    Route::get('/roles', [RoleController::class, 'index'])->middleware('permission:roles.view')->name('roles.index');
+    Route::get('/roles/create', [RoleController::class, 'create'])->middleware('permission:roles.create')->name('roles.create');
+    Route::post('/roles', [RoleController::class, 'store'])->middleware('permission:roles.create')->name('roles.store');
+    Route::get('/roles/{role}/edit', [RoleController::class, 'edit'])->middleware('permission:roles.update')->name('roles.edit');
+    Route::put('/roles/{role}', [RoleController::class, 'update'])->middleware('permission:roles.update')->name('roles.update');
+    Route::delete('/roles/{role}', [RoleController::class, 'destroy'])->middleware('permission:roles.delete')->name('roles.destroy');
+
+    Route::get('/merchants', [MerchantController::class, 'index'])->middleware('permission:'.implode('|', Navigation::MERCHANT_LIST))->name('merchants.index');
+    Route::get('/merchants/{merchant}', [MerchantController::class, 'show'])->middleware('permission:merchants.view')->name('merchants.show');
+
+    Route::middleware('permission:merchant-providers.assign')->group(function () {
+        Route::get('/merchants/{merchant}/payment-methods', [MerchantPaymentMethodController::class, 'edit'])->name('merchants.payment-methods.edit');
+        Route::put('/merchants/{merchant}/payment-methods', [MerchantPaymentMethodController::class, 'update'])->name('merchants.payment-methods.update');
+    });
+
+    Route::get('/providers', [ProviderController::class, 'index'])->middleware('permission:'.implode('|', Navigation::PROVIDER_LIST))->name('providers.index');
 
     Route::middleware('permission:providers.manage')->group(function () {
-        Route::get('/providers', [ProviderController::class, 'index'])->name('providers.index');
         Route::get('/providers/create', [ProviderController::class, 'create'])->name('providers.create');
         Route::post('/providers', [ProviderController::class, 'store'])->name('providers.store');
         Route::get('/providers/{provider}/edit', [ProviderController::class, 'edit'])->name('providers.edit');
         Route::put('/providers/{provider}', [ProviderController::class, 'update'])->name('providers.update');
-    });
-
-    Route::middleware('permission:merchant-providers.assign')->group(function () {
-        Route::get('/merchants', [MerchantPaymentMethodController::class, 'index'])->name('merchants.index');
-        Route::get('/merchants/{merchant}/payment-methods', [MerchantPaymentMethodController::class, 'edit'])->name('merchants.payment-methods.edit');
-        Route::put('/merchants/{merchant}/payment-methods', [MerchantPaymentMethodController::class, 'update'])->name('merchants.payment-methods.update');
     });
 });
 

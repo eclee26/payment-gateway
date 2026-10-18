@@ -209,15 +209,16 @@ class DashboardAccessTest extends TestCase
 
         // These POSTs answer with a page instead of a redirect, which Turbo
         // cannot render; they must submit as full page loads.
-        $this->actingAs($user)->withSession($confirmed)
-            ->get('/dashboard/api-keys')
-            ->assertOk()
-            ->assertSee('action="'.route('dashboard.api-keys.store').'" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end" data-turbo="false"', false);
+        $pages = [
+            '/dashboard/api-keys' => route('dashboard.api-keys.store'),
+            '/dashboard/webhooks' => route('dashboard.webhooks.rotate-secret'),
+        ];
 
-        $this->actingAs($user)->withSession($confirmed)
-            ->get('/dashboard/webhooks')
-            ->assertOk()
-            ->assertSee('action="'.route('dashboard.webhooks.rotate-secret').'" class="mt-4" data-turbo="false"', false);
+        foreach ($pages as $page => $action) {
+            $html = $this->actingAs($user)->withSession($confirmed)->get($page)->assertOk()->getContent();
+
+            $this->assertMatchesRegularExpression('/<form[^>]*action="'.preg_quote($action, '/').'"[^>]*data-turbo="false"/', $html);
+        }
     }
 
     public function test_user_can_revoke_their_own_key(): void

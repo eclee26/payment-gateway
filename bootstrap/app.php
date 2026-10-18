@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureTwoFactorEnabled;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\VerifyHmacSignature;
 use App\Support\ApiError;
@@ -24,6 +25,9 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SecurityHeaders::class);
+
+        // TOTP is mandatory for every web user.
+        $middleware->appendToGroup('web', EnsureTwoFactorEnabled::class);
 
         $middleware->alias([
             'role' => RoleMiddleware::class,

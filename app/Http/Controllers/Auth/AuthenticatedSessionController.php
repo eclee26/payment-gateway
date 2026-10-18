@@ -24,9 +24,23 @@ class AuthenticatedSessionController extends Controller
      */
     public function store(LoginRequest $request): RedirectResponse
     {
-        $request->authenticate();
+        $user = $request->authenticate();
 
         $request->session()->regenerate();
+
+        // Password is correct but the user is not logged in until they pass
+        // the TOTP challenge.
+        if ($user->hasTwoFactorEnabled()) {
+            $request->session()->put([
+                TwoFactorChallengeController::SESSION_USER => $user->getKey(),
+                TwoFactorChallengeController::SESSION_REMEMBER => $request->boolean('remember'),
+            ]);
+
+            return redirect()->route('two-factor.challenge');
+        }
+
+        // No TOTP yet: EnsureTwoFactorEnabled sends them to setup.
+        Auth::guard('web')->login($user, $request->boolean('remember'));
 
         return redirect()->intended(route('dashboard', absolute: false));
     }
